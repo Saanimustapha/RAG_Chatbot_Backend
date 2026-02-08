@@ -14,7 +14,6 @@ def get_or_create_index():
         )
     return pc.Index(settings.PINECONE_INDEX_NAME)
 
-index = get_or_create_index()
 
 def namespace_for_user(user_id: str) -> str:
     # simple isolation per user (Phase 1). Later you can do org/team namespaces.
@@ -24,9 +23,13 @@ def upsert_vectors(user_id: str, vectors: list[tuple[str, list[float], dict]]):
     """
     vectors: [(id, embedding, metadata)]
     """
+    
+    index = get_or_create_index()
     index.upsert(vectors=vectors, namespace=namespace_for_user(user_id))
 
 def query_vectors(user_id: str, embedding: list[float], top_k: int):
+    
+    index = get_or_create_index()
     return index.query(
         vector=embedding,
         top_k=top_k,

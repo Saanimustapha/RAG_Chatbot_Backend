@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api"
 
     DATABASE_URL: str
+    DATABASE_URL_SYNC: str
 
     JWT_SECRET: str
     JWT_ALG: str = "HS256"
