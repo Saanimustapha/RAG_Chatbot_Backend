@@ -11,7 +11,7 @@ from RAG_Chatbot_Backend.services.embeddings import embed_query
 from RAG_Chatbot_Backend.services.pinecone_store import query_vectors
 from RAG_Chatbot_Backend.services.rag import generate_answer
 
-router = APIRouter()
+router = APIRouter(prefix="/chat", tags=["chat"])
 
 @router.post("/query", response_model=ChatOut)
 async def chat_query(

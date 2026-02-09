@@ -12,7 +12,7 @@ from RAG_Chatbot_Backend.services.chunker import chunk_text
 from RAG_Chatbot_Backend.services.embeddings import embed_texts
 from RAG_Chatbot_Backend.services.pinecone_store import upsert_vectors
 
-router = APIRouter()
+router = APIRouter(prefix="/docs", tags=["docs"])
 
 @router.post("/pasted", response_model=IngestOut)
 async def ingest_pasted(
