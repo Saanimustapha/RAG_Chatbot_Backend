@@ -35,7 +35,7 @@ async def ingest_pasted(
         vectors.append((pinecone_id, emb, {
             "document_id": str(doc.id),
             "chunk_index": i,
-            "title": doc.title,
+            "title": doc.title or "",
             "source_type": doc.source_type,
             "citation": f"{doc.id}:{i}",
         }))

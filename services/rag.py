@@ -30,7 +30,7 @@ def generate_answer(question: str, contexts: list[dict]) -> str:
         "options": {"temperature": 0.2},
     }
 
-    r = requests.post(f"{settings.OLLAMA_BASE_URL}/api/chat", json=payload, timeout=120)
+    r = requests.post(f"{settings.OLLAMA_BASE_URL}/api/chat", json=payload, timeout=300)
     r.raise_for_status()
     data = r.json()
-    return data["message"]["content"]
+    return (data.get("message") or {}).get("content", "").strip()
