@@ -1,26 +1,36 @@
-from openai import OpenAI
+import requests
 from RAG_Chatbot_Backend.core.config import settings
 
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
-
-def build_prompt(question: str, contexts: list[dict]) -> list[dict]:
-    # contexts: [{text, citation}]
+def build_prompt(question: str, contexts: list[dict]) -> str:
     context_block = "\n\n".join([f"[{c['citation']}]\n{c['text']}" for c in contexts])
 
-    system = (
-        "You are a helpful assistant. Answer using ONLY the provided context. "
-        "If the answer isn't in the context, say you don't know. "
-        "Cite sources using bracket citations like [doc:chunk] at the end of sentences."
-    )
+    return f"""
+You are a helpful assistant.
+Answer using ONLY the provided context.
+If the answer isn't in the context, say you don't know.
+Cite sources using bracket citations like [doc:chunk] at the end of sentences.
 
-    user = f"Context:\n{context_block}\n\nQuestion: {question}\nAnswer:"
-    return [{"role": "system", "content": system}, {"role": "user", "content": user}]
+Context:
+{context_block}
+
+Question: {question}
+Answer:
+""".strip()
 
 def generate_answer(question: str, contexts: list[dict]) -> str:
-    messages = build_prompt(question, contexts)
-    resp = client.chat.completions.create(
-        model=settings.OPENAI_CHAT_MODEL,
-        messages=messages,
-        temperature=0.2,
-    )
-    return resp.choices[0].message.content
+    prompt = build_prompt(question, contexts)
+
+    payload = {
+        "model": settings.OLLAMA_MODEL,
+        "messages": [
+            {"role": "system", "content": "You are a grounded RAG assistant."},
+            {"role": "user", "content": prompt},
+        ],
+        "stream": False,
+        "options": {"temperature": 0.2},
+    }
+
+    r = requests.post(f"{settings.OLLAMA_BASE_URL}/api/chat", json=payload, timeout=120)
+    r.raise_for_status()
+    data = r.json()
+    return data["message"]["content"]
