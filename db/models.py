@@ -21,10 +21,17 @@ class Document(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=True)
     source_type: Mapped[str] = mapped_column(String(50), nullable=False)  # pdf, docx, txt, pasted
     original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     owner: Mapped["User"] = relationship(back_populates="documents")
     chunks: Mapped[list["Chunk"]] = relationship(back_populates="document", cascade="all, delete-orphan")
+
+    checksum: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
 
 class Chunk(Base):
     __tablename__ = "chunks"
@@ -41,6 +48,11 @@ class Chunk(Base):
     pinecone_id: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
 
     document: Mapped["Document"] = relationship(back_populates="chunks")
+
+    doc_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+    section: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
 
 class IngestionJob(Base):
     __tablename__ = "ingestion_jobs"

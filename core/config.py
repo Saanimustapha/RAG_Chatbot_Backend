@@ -27,7 +27,10 @@ class Settings(BaseSettings):
     PINECONE_REGION: str = "us-east-1"
     PINECONE_DIM: int = 1536
 
+    ARTIFACTS_DIR: str = "artifacts"
+
     MAX_UPLOAD_MB: int = 20
+    CHUNK_STRATEGY: str = "tokens"
     CHUNK_TOKENS: int = 450
     CHUNK_OVERLAP: int = 80
     TOP_K: int = 6
