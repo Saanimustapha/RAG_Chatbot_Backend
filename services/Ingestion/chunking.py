@@ -1,5 +1,5 @@
 import re
-from services.chunker import chunk_text  
+from RAG_Chatbot_Backend.services.chunker import chunk_text  
 
 _sentence_re = re.compile(r"(?<=[.!?])\s+")
 

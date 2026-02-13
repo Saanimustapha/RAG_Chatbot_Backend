@@ -1,6 +1,6 @@
 from bs4 import BeautifulSoup
-from services.extractor import extract_pdf, extract_docx, extract_txt  # adjust import to match your project
-from cleaning import normalize_text
+from RAG_Chatbot_Backend.services.extractor import extract_pdf, extract_docx, extract_txt  # adjust import to match your project
+from RAG_Chatbot_Backend.services.Ingestion.cleaning import normalize_text
 
 def load_pdf_bytes(file_bytes: bytes) -> list[dict]:
     # extract_pdf returns (full_text, pages)

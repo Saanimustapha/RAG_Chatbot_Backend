@@ -5,10 +5,9 @@ def build_prompt(question: str, contexts: list[dict]) -> str:
     context_block = "\n\n".join([f"[{c['citation']}]\n{c['text']}" for c in contexts])
 
     return f"""
-You are a helpful assistant.
-Answer using ONLY the provided context.
-If the answer isn't in the context, say you don't know.
-Cite sources using bracket citations like [doc:chunk] at the end of sentences.
+You are a helpful assistant. Answer using ONLY the provided context. 
+If the answer isn't in the context, say you don't know. 
+Cite sources using bracket citations like [weekly_report.pdf p. 3] at the end of sentences.
 
 Context:
 {context_block}

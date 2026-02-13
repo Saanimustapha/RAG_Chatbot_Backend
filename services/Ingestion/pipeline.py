@@ -5,16 +5,16 @@ from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 
-from core.config import settings  # adjust import
-from db.models import Document, Chunk  # adjust import
-from services.embeddings import embed_texts
-from services.pinecone_store import upsert_vectors
-from hashing import sha256_bytes
-from loaders import (
+from RAG_Chatbot_Backend.core.config import settings  
+from RAG_Chatbot_Backend.db.models import Document, Chunk  
+from RAG_Chatbot_Backend.services.embeddings import embed_texts
+from RAG_Chatbot_Backend.services.pinecone_store import upsert_vectors
+from RAG_Chatbot_Backend.services.Ingestion.hashing import sha256_bytes
+from RAG_Chatbot_Backend.services.Ingestion.loaders import (
     load_pdf_bytes, load_docx_bytes, load_text_bytes, load_html_bytes
 )
-from chunking import chunk_tokens, chunk_sentences
-from artifacts import (
+from RAG_Chatbot_Backend.services.Ingestion.chunking import chunk_tokens, chunk_sentences
+from RAG_Chatbot_Backend.services.Ingestion.artifacts import (
     ensure_dir, write_chunks_jsonl, write_embeddings_bin, write_docstore_jsonl
 )
 
@@ -40,10 +40,10 @@ async def ingest_bytes(
     if filename:
         q = q.where(Document.original_filename == filename)
     else:
-        q = q.where(Document.title == title)
+        q = q.where(Document.title == title, Document.source_type == source_type)
 
     res = await db.execute(q)
-    doc = res.scalar_one_or_none()
+    doc = res.scalars().first()
 
     if doc and doc.checksum == checksum:
         return {"skipped": True, "document_id": str(doc.id), "version": doc.version, "chunks": 0}
@@ -52,9 +52,9 @@ async def ingest_bytes(
     if not doc:
         doc = Document(
             owner_id=owner_id,
-            title=title,
-            source_type=source_type,
-            original_filename=filename,
+            title=title or "",
+            source_type=source_type or "",
+            original_filename=filename or "",
             checksum=checksum,
             version=1,
             created_at=now,
@@ -90,26 +90,28 @@ async def ingest_bytes(
                     "text": chunk_text,
                     "page_start": page_num,
                     "page_end": page_num,
-                    "section": None,
                 })
+
     elif source_type == "html":
         blocks = load_html_bytes(file_bytes)
         for b in blocks:
+            section = (b.get("section") or "").strip() or None
             for chunk_text in chunker(b["text"], chunk_tokens_n, overlap):
-                chunks_with_meta.append({
-                    "text": chunk_text,
-                    "page_start": None,
-                    "page_end": None,
-                    "section": b.get("section"),
-                })
+                item = {"text": chunk_text}
+                if section:  # only include if non-empty
+                    item["section"] = section
+                chunks_with_meta.append(item)
+
     elif source_type == "docx":
         text = load_docx_bytes(file_bytes)
         for chunk_text in chunker(text, chunk_tokens_n, overlap):
-            chunks_with_meta.append({"text": chunk_text, "page_start": None, "page_end": None, "section": None})
+            chunks_with_meta.append({"text": chunk_text})
+
     else:  # txt/md/pasted
         text = load_text_bytes(file_bytes)
         for chunk_text in chunker(text, chunk_tokens_n, overlap):
-            chunks_with_meta.append({"text": chunk_text, "page_start": None, "page_end": None, "section": None})
+            chunks_with_meta.append({"text": chunk_text})
+
 
     texts = [c["text"] for c in chunks_with_meta]
     if not texts:
@@ -132,23 +134,23 @@ async def ingest_bytes(
             "document_id": str(doc.id),
             "doc_version": doc.version,
             "chunk_index": i,
-            "title": doc.title,
-            "source_type": doc.source_type,
-            "filename": filename,
-            "citation": citation,
-            "page_start": meta["page_start"],
-            "page_end": meta["page_end"],
-            "section": meta["section"],
+            "title": doc.title or "",
+            "source_type": doc.source_type or "",
+            "filename": filename or "",
+            "citation": citation or "",
+            "page_start": meta.get("page_start",""),
+            "page_end": meta.get("page_end",""),
+            "section": meta.get("section",""),
         }))
 
         chunk_rows.append(Chunk(
             document_id=doc.id,
             doc_version=doc.version,
             chunk_index=i,
-            text=meta["text"],
-            page_start=meta["page_start"],
-            page_end=meta["page_end"],
-            section=meta["section"],
+            text=meta.get("text",""),
+            page_start=meta.get("page_start",""),
+            page_end=meta.get("page_end",""),
+            section=meta.get("section",""),
             pinecone_id=pinecone_id
         ))
 
@@ -157,13 +159,13 @@ async def ingest_bytes(
             "document_id": str(doc.id),
             "doc_version": doc.version,
             "chunk_index": i,
-            "text": meta["text"],
-            "title": doc.title,
-            "source_type": doc.source_type,
-            "filename": filename,
-            "page_start": meta["page_start"],
-            "page_end": meta["page_end"],
-            "section": meta["section"],
+            "text": meta.get("text",""),
+            "title": doc.title or "",
+            "source_type": doc.source_type or "",
+            "filename": filename or "",
+            "page_start": meta.get("page_start",""),
+            "page_end": meta.get("page_end",""),
+            "section": meta.get("section",""),
             "ingested_at": now.isoformat(),
             "checksum": checksum,
         })
@@ -173,12 +175,12 @@ async def ingest_bytes(
             "document_id": str(doc.id),
             "doc_version": doc.version,
             "chunk_index": i,
-            "title": doc.title,
-            "source_type": doc.source_type,
-            "filename": filename,
-            "page_start": meta["page_start"],
-            "page_end": meta["page_end"],
-            "section": meta["section"],
+            "title": doc.title or "",
+            "source_type": doc.source_type or "",
+            "filename": filename or "",
+            "page_start": meta.get("page_start",""),
+            "page_end": meta.get("page_end",""),
+            "section": meta.get("section",""),
         })
 
     # upsert to pinecone
