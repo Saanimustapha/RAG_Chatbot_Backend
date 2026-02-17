@@ -1,5 +1,6 @@
 from pinecone import Pinecone, ServerlessSpec
 from RAG_Chatbot_Backend.core.config import settings
+from RAG_Chatbot_Backend.utils.pinecone_meta import clean_metadata
 
 pc = Pinecone(api_key=settings.PINECONE_API_KEY)
 
@@ -19,13 +20,22 @@ def namespace_for_user(user_id: str) -> str:
     # simple isolation per user (Phase 1). Later you can do org/team namespaces.
     return f"{settings.PINECONE_NAMESPACE_PREFIX}{user_id}"
 
+# def upsert_vectors(user_id: str, vectors: list[tuple[str, list[float], dict]]):
+#     """
+#     vectors: [(id, embedding, metadata)]
+#     """
+    
+#     index = get_or_create_index()
+#     index.upsert(vectors=vectors, namespace=namespace_for_user(user_id))
+
 def upsert_vectors(user_id: str, vectors: list[tuple[str, list[float], dict]]):
-    """
-    vectors: [(id, embedding, metadata)]
-    """
+    cleaned_vectors = []
+    for vec_id, values, md in vectors:
+        cleaned_vectors.append((vec_id, values, clean_metadata(md)))
     
     index = get_or_create_index()
-    index.upsert(vectors=vectors, namespace=namespace_for_user(user_id))
+    index.upsert(vectors=cleaned_vectors, namespace=namespace_for_user(user_id))
+
 
 def query_vectors(user_id: str, embedding: list[float], top_k: int):
     
