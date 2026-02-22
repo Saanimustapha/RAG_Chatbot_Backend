@@ -1,7 +1,6 @@
 import os
 from datetime import datetime
 from uuid import uuid4
-
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 
@@ -132,7 +131,8 @@ async def ingest_bytes(
     docstore_jsonl = []
 
     for i, (meta, emb) in enumerate(zip(chunks_with_meta, embeddings)):
-        citation = f"{doc.id}:{i}"
+        # citation = f"{doc.id}:{i}"
+        citation = f"{doc.id}:v{doc.version}:{i}"
         pinecone_id = f"{doc.id}:{doc.version}:{i}:{uuid4().hex[:8]}"
 
         # vectors.append((pinecone_id, emb, {
