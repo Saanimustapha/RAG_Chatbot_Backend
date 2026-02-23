@@ -335,3 +335,30 @@ class HNSWIndex:
             else:
                 out.append((n, float(-d)))
         return out
+
+    def add_vectors(self, new_vectors: np.ndarray) -> list[int]:
+        """
+        Incrementally add vectors to an existing HNSW index.
+        Appends vectors to self.vectors and inserts each new node into the graph.
+
+        Returns the list of new node indices.
+        """
+        if new_vectors is None or len(new_vectors) == 0:
+            return []
+
+        # If index is empty, just build from scratch.
+        if self.vectors is None or self.entry_point is None or self.N == 0:
+            self.build(new_vectors)
+            return list(range(self.N))
+
+        nv = self._prepare_vectors_incremental(new_vectors)
+
+        start = self.N
+        self.vectors = np.vstack([self.vectors, nv]).astype(np.float32)
+        self.N, self.dim = self.vectors.shape
+
+        new_nodes = list(range(start, self.N))
+        for node in new_nodes:
+            self.insert(node)
+
+        return new_nodes
