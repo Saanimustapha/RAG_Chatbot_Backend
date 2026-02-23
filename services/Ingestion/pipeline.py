@@ -1,9 +1,13 @@
 import os
+from pathlib import Path
 from datetime import datetime
 from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 
+
+from RAG_Chatbot_Backend.services.corpus.updater import update_user_corpus_and_hnsw
+from RAG_Chatbot_Backend.services.hnsw.hnsw_index import HNSWParams
 from RAG_Chatbot_Backend.core.config import settings  
 from RAG_Chatbot_Backend.db.models import Document, Chunk  
 from RAG_Chatbot_Backend.services.embeddings import embed_texts
@@ -216,5 +220,27 @@ async def ingest_bytes(
     write_chunks_jsonl(chunks_jsonl, os.path.join(base_dir, "chunks.jsonl"))
     write_docstore_jsonl(docstore_jsonl, os.path.join(base_dir, "docstore.jsonl"))
     write_embeddings_bin(embeddings, os.path.join(base_dir, "embeddings.bin"))
+
+    # --- update per-user corpus + HNSW index ---
+    user_dir = Path(settings.ARTIFACTS_DIR) / f"user_{owner_id}"
+    doc_leaf = Path(base_dir)  # this is .../doc_<id>/v<version>
+
+    # set these in .env or hardcode for now
+    embed_dim = int(getattr(settings, "EMBEDDING_DIM", 384))
+
+    hnsw_params = HNSWParams(
+        M=int(getattr(settings, "HNSW_M", 16)),
+        ef_construction=int(getattr(settings, "HNSW_EFC", 200)),
+        ef_search=int(getattr(settings, "HNSW_EFS", 50)),
+        metric=str(getattr(settings, "HNSW_METRIC", "cosine")),
+        seed=42,
+    )
+
+    update_user_corpus_and_hnsw(
+        user_dir=user_dir,
+        doc_leaf=doc_leaf,
+        embed_dim=embed_dim,
+        hnsw_params=hnsw_params,
+    )
 
     return {"skipped": False, "document_id": str(doc.id), "version": doc.version, "chunks": len(texts)}
