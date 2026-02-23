@@ -351,7 +351,7 @@ class HNSWIndex:
             self.build(new_vectors)
             return list(range(self.N))
 
-        nv = self._prepare_vectors_incremental(new_vectors)
+        nv = self._prepare_vectors(new_vectors)
 
         start = self.N
         self.vectors = np.vstack([self.vectors, nv]).astype(np.float32)
