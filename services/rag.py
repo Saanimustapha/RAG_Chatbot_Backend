@@ -7,7 +7,7 @@ def build_prompt(question: str, contexts: list[dict]) -> str:
     return f"""
 You are a helpful assistant. Answer using ONLY the provided context. 
 If the answer isn't in the context, say you don't know. 
-Cite sources using bracket citations like [weekly_report.pdf p. 3] at the end of sentences.
+Cite sources using bracket citations at the end of sentences.
 
 Context:
 {context_block}

@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     PINECONE_REGION: str = "us-east-1"
     PINECONE_DIM: int = 1536
 
+    HNSW_M: int = 16
+    HNSW_EFC: int = 200
+    HNSW_EFS: int = 80
+    HNSW_METRIC: str = "cosine"
+
     ARTIFACTS_DIR: str = "artifacts"
 
     MAX_UPLOAD_MB: int = 20

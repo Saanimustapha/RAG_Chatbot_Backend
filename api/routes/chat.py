@@ -8,9 +8,10 @@ from RAG_Chatbot_Backend.db.models import Chunk
 from RAG_Chatbot_Backend.schemas.chat import ChatQueryIn, ChatOut, RetrievedChunk
 from RAG_Chatbot_Backend.core.config import settings
 from RAG_Chatbot_Backend.services.embeddings import embed_query
-from RAG_Chatbot_Backend.services.pinecone_store import query_vectors
+from RAG_Chatbot_Backend.services.local_retriever import query_user_index
 from RAG_Chatbot_Backend.services.rag import generate_answer
 from RAG_Chatbot_Backend.utils.citations import format_citation 
+
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -22,7 +23,7 @@ async def chat_query(
 ):
     top_k = payload.top_k or settings.TOP_K
     q_emb = embed_query(payload.question)
-    matches = query_vectors(str(user.id), q_emb, top_k=top_k)
+    matches = query_user_index(str(user.id), q_emb, top_k=top_k)
 
     contexts = []
     for m in matches["matches"]:

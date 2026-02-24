@@ -88,3 +88,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# $env:USER_ARTIFACT_DIR="artifacts\user_<id>"
+# $env:EMBED_DIM="384"
+# python RAG_Chatbot_Backend/scripts/build_user_corpus_from_existing.py
