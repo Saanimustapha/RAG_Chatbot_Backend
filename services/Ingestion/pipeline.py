@@ -14,6 +14,9 @@ from RAG_Chatbot_Backend.services.embeddings import embed_texts
 from RAG_Chatbot_Backend.services.pinecone_store import upsert_vectors
 from RAG_Chatbot_Backend.services.Ingestion.hashing import sha256_bytes
 from RAG_Chatbot_Backend.utils.text_sanitize import sanitize_text
+from RAG_Chatbot_Backend.services.Ingestion.pdf_cleaning import build_repeated_line_filter, clean_pdf_page
+from RAG_Chatbot_Backend.services.Ingestion.pdf_blocks import split_into_blocks
+from RAG_Chatbot_Backend.services.Ingestion.summarize import page_summary
 from RAG_Chatbot_Backend.services.Ingestion.loaders import (
     load_pdf_bytes, load_docx_bytes, load_text_bytes, load_html_bytes
 )
@@ -91,14 +94,44 @@ async def ingest_bytes(
 
     if source_type == "pdf":
         pages = load_pdf_bytes(file_bytes)
+
+        # 1) detect repeated header/footer lines across pages
+        repeated = build_repeated_line_filter(pages, min_freq_ratio=0.35)
+
         for p in pages:
             page_num = p["page"]
-            for chunk_text in chunker(p["text"], chunk_tokens_n, overlap):
+
+            # 2) clean the page (remove repeated lines + artifacts)
+            cleaned_page = clean_pdf_page(p["text"], repeated)
+
+            if not cleaned_page:
+                continue
+
+            # 3) split into blocks by heading/paragraph
+            blocks = split_into_blocks(cleaned_page)
+
+            # 4) Optional: add one summary chunk per page (helps conceptual Q&A)
+            summary = page_summary(cleaned_page, max_sentences=3)
+            if summary:
                 chunks_with_meta.append({
-                    "text": chunk_text,
+                    "text": f"Page {page_num} summary: {summary}",
                     "page_start": page_num,
                     "page_end": page_num,
+                    "section": "Page Summary",
                 })
+
+            # 5) Chunk each block using your existing token chunker
+            for b in blocks:
+                section = b.get("section")
+                for chunk_text in chunker(b["text"], chunk_tokens_n, overlap):
+                    item = {
+                        "text": chunk_text,
+                        "page_start": page_num,
+                        "page_end": page_num,
+                    }
+                    if section:
+                        item["section"] = section
+                    chunks_with_meta.append(item)
 
     elif source_type == "html":
         blocks = load_html_bytes(file_bytes)
