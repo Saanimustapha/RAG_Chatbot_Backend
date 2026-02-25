@@ -4,11 +4,22 @@ import json
 from pathlib import Path
 from typing import Any
 
+import os
 import numpy as np
 
 from RAG_Chatbot_Backend.core.config import settings
 from RAG_Chatbot_Backend.services.hnsw.hnsw_persist import load_hnsw
+from RAG_Chatbot_Backend.services.hnsw.hnsw_index import HNSWIndex, HNSWParams
+from RAG_Chatbot_Backend.services.hnsw.hnsw_persist import save_hnsw
 
+def _max_neighbor_id(idx) -> int:
+    mx = -1
+    for node_layers in idx.neighbors:
+        for layer in node_layers:
+            for nb in layer:
+                if nb > mx:
+                    mx = nb
+    return mx
 
 def _user_artifacts_dir(user_id: str) -> Path:
     # IMPORTANT: your artifacts naming is "user_<uuid>"
@@ -76,6 +87,21 @@ def query_user_index(user_id: str, query_embedding: list[float], top_k: int) -> 
     idx = load_hnsw(hnsw_dir)
     idx.vectors = idx._prepare_vectors(vectors)
     idx.N, idx.dim = idx.vectors.shape
+
+    # ✅ Consistency check: graph must not reference nodes >= N
+    mx = _max_neighbor_id(idx)
+    if mx >= idx.N:
+        # graph is stale/corrupted; rebuild
+        params = getattr(idx, "params", None)
+        if params is None:
+            params = HNSWParams(M=16, ef_construction=200, ef_search=80, metric="cosine", seed=42)
+
+        rebuilt = HNSWIndex(params=params)
+        rebuilt.build(vectors)
+        save_hnsw(rebuilt, hnsw_dir)
+
+        # use rebuilt index
+        idx = rebuilt
 
     # Convert query to numpy vector
     q = np.asarray(query_embedding, dtype=np.float32)

@@ -8,6 +8,7 @@ def normalize_text(text: str) -> str:
     if not text:
         return ""
     # unicode normalization
+    text = text.replace("\x00", "")
     text = unicodedata.normalize("NFKC", text)
 
     # fix common PDF hyphen line breaks: "exam-\nple" -> "example"

@@ -13,7 +13,7 @@ from RAG_Chatbot_Backend.db.models import Document, Chunk
 from RAG_Chatbot_Backend.services.embeddings import embed_texts
 from RAG_Chatbot_Backend.services.pinecone_store import upsert_vectors
 from RAG_Chatbot_Backend.services.Ingestion.hashing import sha256_bytes
-from RAG_Chatbot_Backend.utils.pinecone_meta import clean_metadata
+from RAG_Chatbot_Backend.utils.text_sanitize import sanitize_text
 from RAG_Chatbot_Backend.services.Ingestion.loaders import (
     load_pdf_bytes, load_docx_bytes, load_text_bytes, load_html_bytes
 )
@@ -171,10 +171,10 @@ async def ingest_bytes(
             document_id=doc.id,
             doc_version=doc.version,
             chunk_index=i,
-            text=meta.get("text",""),
+            text=sanitize_text(meta.get("text", "")),      
             page_start=meta.get("page_start"),
             page_end=meta.get("page_end"),
-            section=meta.get("section"),
+            section=sanitize_text(meta.get("section")),        
             pinecone_id=pinecone_id
         ))
 
@@ -183,13 +183,13 @@ async def ingest_bytes(
             "document_id": str(doc.id),
             "doc_version": doc.version,
             "chunk_index": i,
-            "text": meta.get("text",""),
-            "title": doc.title or "",
+            "text": sanitize_text(meta.get("text", "")),       
+            "title": sanitize_text(doc.title),                 
             "source_type": doc.source_type or "",
-            "filename": filename or "",
+            "filename": sanitize_text(filename or ""),        
             "page_start": meta.get("page_start"),
             "page_end": meta.get("page_end"),
-            "section": meta.get("section"),
+            "section": sanitize_text(meta.get("section")),     
             "ingested_at": now.isoformat(),
             "checksum": checksum,
         })
@@ -199,13 +199,13 @@ async def ingest_bytes(
             "document_id": str(doc.id),
             "doc_version": doc.version,
             "chunk_index": i,
-            "title": doc.title or "",
+            "title": sanitize_text(doc.title),
             "source_type": doc.source_type or "",
-            "filename": filename or "",
+            "filename": sanitize_text(filename or ""),
             "page_start": meta.get("page_start"),
             "page_end": meta.get("page_end"),
-            "section": meta.get("section"),
-        })
+            "section": sanitize_text(meta.get("section")),
+            })
 
     # upsert to pinecone
     upsert_vectors(str(owner_id), vectors)

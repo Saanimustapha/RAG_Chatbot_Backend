@@ -56,6 +56,8 @@ async def chat_query(
             "title": md.get("title"),
         })
 
+
+
     answer = generate_answer(payload.question, contexts)
 
     return ChatOut(
