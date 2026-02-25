@@ -29,34 +29,41 @@ async def chat_query(
     for m in matches["matches"]:
         md = m.get("metadata") or {}
 
-        citation_id = md.get("citation")  # internal: "{doc_id}:{chunk_index}"
+        citation_id = md.get("citation") or md.get("chunk_id")
         if not citation_id:
             continue
 
-        # ✅ Human-friendly citation from Pinecone metadata
         display_citation = format_citation(md)
 
         try:
-            doc_id, chunk_index = citation_id.split(":")
-            chunk_index = int(chunk_index)
+            parts = citation_id.split(":")
+            doc_id = parts[0]
+            # supports "doc_id:v1:264"
+            doc_version = None
+            if len(parts) >= 3 and parts[-2].startswith("v"):
+                doc_version = int(parts[-2][1:])
+            chunk_index = int(parts[-1])
         except Exception:
             continue
 
-        res = await db.execute(
-            select(Chunk).where(Chunk.document_id == doc_id, Chunk.chunk_index == chunk_index)
+        stmt = select(Chunk).where(
+            Chunk.document_id == doc_id,
+            Chunk.chunk_index == chunk_index,
         )
+        if doc_version is not None:
+            stmt = stmt.where(Chunk.doc_version == doc_version)
+
+        res = await db.execute(stmt)
         chunk = res.scalar_one_or_none()
         if not chunk:
             continue
 
         contexts.append({
-            "citation": display_citation,   # ✅ for prompt + response
-            "citation_id": citation_id,     # optional
+            "citation": display_citation,   
+            "citation_id": citation_id,     
             "text": chunk.text,
             "title": md.get("title"),
         })
-
-
 
     answer = generate_answer(payload.question, contexts)
 
