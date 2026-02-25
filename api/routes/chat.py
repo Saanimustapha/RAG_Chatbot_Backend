@@ -25,9 +25,14 @@ async def chat_query(
     q_emb = embed_query(payload.question)
     matches = query_user_index(str(user.id), q_emb, top_k=top_k)
 
+    target_doc_id = payload.document_id  
+
     contexts = []
     for m in matches["matches"]:
         md = m.get("metadata") or {}
+
+        if target_doc_id and md.get("document_id") != target_doc_id:
+            continue
 
         citation_id = md.get("citation") or md.get("chunk_id")
         if not citation_id:
@@ -64,6 +69,8 @@ async def chat_query(
             "text": chunk.text,
             "title": md.get("title"),
         })
+
+    print(contexts)
 
     answer = generate_answer(payload.question, contexts)
 

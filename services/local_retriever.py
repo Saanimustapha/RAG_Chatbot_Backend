@@ -120,6 +120,14 @@ def query_user_index(user_id: str, query_embedding: list[float], top_k: int) -> 
 
         md = docstore_rows[node_idx] if node_idx < len(docstore_rows) else {}
         # Ensure metadata includes "citation" since your chat code expects it
+
+        source_type = (md.get("source_type") or "").lower()
+        filename = (md.get("filename") or "").lower()
+
+        # Example: skip noisy log-like txt files
+        if source_type == "txt" and ("whoami" in filename or "log" in filename or "headers" in (md.get("text","").lower() if "text" in md else "")):
+            continue
+
         md = dict(md)
         md.setdefault("citation", md.get("chunk_id", chunk_id))
 

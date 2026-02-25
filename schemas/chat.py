@@ -1,8 +1,12 @@
 from pydantic import BaseModel
+from typing import Optional
 
 class ChatQueryIn(BaseModel):
     question: str
     top_k: int | None = None
+    document_id: Optional[str]
+    source_type: Optional[str]
+    filename_contains: Optional[str]
 
 class RetrievedChunk(BaseModel):
     citation: str                 # human-friendly: "weekly_report.pdf p. 3"
