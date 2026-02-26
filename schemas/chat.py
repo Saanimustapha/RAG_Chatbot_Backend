@@ -4,9 +4,9 @@ from typing import Optional
 class ChatQueryIn(BaseModel):
     question: str
     top_k: int | None = None
-    document_id: Optional[str]
-    source_type: Optional[str]
-    filename_contains: Optional[str]
+    document_id: Optional[str] = None
+    source_type: Optional[str] = None
+    filename_contains: Optional[str] = None
 
 class RetrievedChunk(BaseModel):
     citation: str                 # human-friendly: "weekly_report.pdf p. 3"
