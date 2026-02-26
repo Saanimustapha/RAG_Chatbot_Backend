@@ -1,9 +1,10 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Optional, List
 
 class ChatQueryIn(BaseModel):
     question: str
     top_k: int | None = None
+    document_ids: Optional[List[str]] = Field(default=None, description="Restrict retrieval to these document UUIDs")
     document_id: Optional[str] = None
     source_type: Optional[str] = None
     filename_contains: Optional[str] = None
