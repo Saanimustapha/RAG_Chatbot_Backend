@@ -10,8 +10,7 @@ from RAG_Chatbot_Backend.services.corpus.updater import update_user_corpus_and_h
 from RAG_Chatbot_Backend.services.hnsw.hnsw_index import HNSWParams
 from RAG_Chatbot_Backend.core.config import settings  
 from RAG_Chatbot_Backend.db.models import Document, Chunk  
-from RAG_Chatbot_Backend.services.embeddings import embed_texts
-from RAG_Chatbot_Backend.services.pinecone_store import upsert_vectors
+from RAG_Chatbot_Backend.services.embeddings import embed_passages
 from RAG_Chatbot_Backend.services.Ingestion.hashing import sha256_bytes
 from RAG_Chatbot_Backend.utils.text_sanitize import sanitize_text
 from RAG_Chatbot_Backend.services.Ingestion.pdf_cleaning import build_repeated_line_filter, clean_pdf_page
@@ -159,7 +158,7 @@ async def ingest_bytes(
         return {"skipped": False, "document_id": str(doc.id), "version": doc.version, "chunks": 0}
 
     # embed
-    embeddings = embed_texts(texts)
+    embeddings = embed_passages(texts)
 
     # prepare Pinecone vectors + DB rows + artifact rows
     vectors = []
@@ -239,9 +238,6 @@ async def ingest_bytes(
             "page_end": meta.get("page_end"),
             "section": sanitize_text(meta.get("section")),
             })
-
-    # upsert to pinecone
-    upsert_vectors(str(owner_id), vectors)
 
     # persist chunks to postgres
     db.add_all(chunk_rows)
