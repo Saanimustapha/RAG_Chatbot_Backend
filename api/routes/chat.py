@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+import uuid
 
 from RAG_Chatbot_Backend.api.deps import get_current_user
 from RAG_Chatbot_Backend.db.session import get_db
@@ -27,6 +28,8 @@ async def chat_query(
 
     target_doc_id = payload.document_id  
 
+    print(matches)
+
     contexts = []
     for m in matches["matches"]:
         md = m.get("metadata") or {}
@@ -43,6 +46,7 @@ async def chat_query(
         try:
             parts = citation_id.split(":")
             doc_id = parts[0]
+            doc_uuid = uuid.UUID(doc_id)
             # supports "doc_id:v1:264"
             doc_version = None
             if len(parts) >= 3 and parts[-2].startswith("v"):
@@ -52,7 +56,7 @@ async def chat_query(
             continue
 
         stmt = select(Chunk).where(
-            Chunk.document_id == doc_id,
+            Chunk.document_id == doc_uuid,
             Chunk.chunk_index == chunk_index,
         )
         if doc_version is not None:
