@@ -7,12 +7,23 @@ import numpy as np
 from RAG_Chatbot_Backend.services.local_vector_store.store import LocalVectorStore
 from RAG_Chatbot_Backend.services.local_vector_store.metrics import bench_search
 from RAG_Chatbot_Backend.services.hnsw.hnsw_persist import load_hnsw
+from RAG_Chatbot_Backend.services.hnsw.hnsw_index import HNSWIndex, HNSWParams
+from RAG_Chatbot_Backend.services.hnsw.hnsw_persist import save_hnsw
 
 
 def recall_at_k(exact_ids, approx_ids, k: int) -> float:
     exact = set(exact_ids[:k])
     approx = set(approx_ids[:k])
     return len(exact.intersection(approx)) / float(k) if k > 0 else 0.0
+
+def _max_neighbor_id(idx) -> int:
+    mx = -1
+    for node_layers in idx.neighbors:
+        for layer in node_layers:
+            for nb in layer:
+                if nb > mx:
+                    mx = nb
+    return mx
 
 
 def load_meta(corpus_dir: Path) -> dict:
@@ -97,6 +108,28 @@ def main():
     hnsw = load_hnsw(hnsw_dir)
     hnsw.vectors = hnsw._prepare_vectors(vectors)
     hnsw.N, hnsw.dim = hnsw.vectors.shape
+
+    # ✅ Consistency check: graph must not reference nodes >= N
+    mx = _max_neighbor_id(hnsw)
+    if mx >= hnsw.N:
+        print(f"[WARN] HNSW graph stale/corrupt: max neighbor id {mx} >= N {hnsw.N}. Rebuilding...")
+
+        # Use existing params if present, else defaults
+        params = getattr(hnsw, "params", None)
+        if params is None:
+            params = HNSWParams(M=16, ef_construction=200, ef_search=80, metric="cosine", seed=42)
+
+        rebuilt = HNSWIndex(params=params)
+        rebuilt.build(vectors)
+
+        save_hnsw(rebuilt, hnsw_dir)
+
+        # reattach vectors
+        hnsw = rebuilt
+        hnsw.vectors = hnsw._prepare_vectors(vectors)
+        hnsw.N, hnsw.dim = hnsw.vectors.shape
+
+        print("[OK] Rebuilt HNSW index.")
 
     # Choose realistic query vectors (sample from existing vectors)
     rng = np.random.default_rng(123)
