@@ -37,3 +37,5 @@ beautifulsoup4==4.12.3
 lxml==5.2.2
 numpy==1.26.4
 
+rank-bm25
+
