@@ -1,29 +1,24 @@
 import os
 import json
 from pathlib import Path
+from typing import List, Tuple
 
 import numpy as np
 
 from RAG_Chatbot_Backend.services.local_vector_store.store import LocalVectorStore
 from RAG_Chatbot_Backend.services.local_vector_store.metrics import bench_search
-from RAG_Chatbot_Backend.services.hnsw.hnsw_persist import load_hnsw
 from RAG_Chatbot_Backend.services.hnsw.hnsw_index import HNSWIndex, HNSWParams
-from RAG_Chatbot_Backend.services.hnsw.hnsw_persist import save_hnsw
+
+# ✅ Uses your actual embedding pipeline for query text
+from RAG_Chatbot_Backend.services.embeddings import embed_query
 
 
-def recall_at_k(exact_ids, approx_ids, k: int) -> float:
+def recall_at_k(exact_ids: List[str], approx_ids: List[str], k: int) -> float:
+    if k <= 0:
+        return 0.0
     exact = set(exact_ids[:k])
     approx = set(approx_ids[:k])
-    return len(exact.intersection(approx)) / float(k) if k > 0 else 0.0
-
-def _max_neighbor_id(idx) -> int:
-    mx = -1
-    for node_layers in idx.neighbors:
-        for layer in node_layers:
-            for nb in layer:
-                if nb > mx:
-                    mx = nb
-    return mx
+    return len(exact.intersection(approx)) / float(k)
 
 
 def load_meta(corpus_dir: Path) -> dict:
@@ -59,35 +54,70 @@ def load_vectors(corpus_dir: Path, dim: int) -> np.ndarray:
     return data.reshape(-1, dim)
 
 
-def main():
+def parse_env():
     """
-    Env vars expected:
+    Required:
+      USER_ID
+      DOCUMENT_ID
+      QUERY_TEXT
 
-    ARTIFACTS_DIR   e.g. "artifacts"
-    USER_ID         e.g. "2d6e...uuid..."
-    TOP_K           default 5
-    N_QUERIES        default 50
-    N_RUNS           default 300   (for latency benchmark)
+    Optional:
+      ARTIFACTS_DIR (default: artifacts)
+      TOP_K (default: 5)
+      N_RUNS (default: 300)
+      HNSW_M (default: 16)
+      HNSW_EFC (default: 200)
+      HNSW_EFS (default: 80)
     """
-
     artifacts_dir = Path(os.environ.get("ARTIFACTS_DIR", "artifacts"))
     user_id = os.environ["USER_ID"]
+    document_id = os.environ["DOCUMENT_ID"]
+    query_text = os.environ["QUERY_TEXT"]
 
     k = int(os.environ.get("TOP_K", "5"))
-    n_queries = int(os.environ.get("N_QUERIES", "50"))
     n_runs = int(os.environ.get("N_RUNS", "300"))
 
-    corpus_dir = artifacts_dir / f"user_{user_id}" / "_corpus"
-    hnsw_dir = corpus_dir / "_hnsw"
+    hnsw_m = int(os.environ.get("HNSW_M", "16"))
+    hnsw_efc = int(os.environ.get("HNSW_EFC", "200"))
+    hnsw_efs = int(os.environ.get("HNSW_EFS", "80"))
 
+    return artifacts_dir, user_id, document_id, query_text, k, n_runs, hnsw_m, hnsw_efc, hnsw_efs
+
+
+def filter_doc_rows(
+    ids: list[str],
+    docstore: list[dict],
+    deleted: set[str],
+    document_id: str,
+) -> list[int]:
+    """
+    Returns the corpus row indices whose metadata.document_id matches document_id
+    and are not deleted.
+    """
+    n = min(len(ids), len(docstore))
+    rows: list[int] = []
+    for i in range(n):
+        if ids[i] in deleted:
+            continue
+        md = docstore[i] or {}
+        if str(md.get("document_id")) == str(document_id):
+            rows.append(i)
+    return rows
+
+
+def main():
+    artifacts_dir, user_id, document_id, query_text, k, n_runs, hnsw_m, hnsw_efc, hnsw_efs = parse_env()
+
+    corpus_dir = artifacts_dir / f"user_{user_id}" / "_corpus"
     if not (corpus_dir / "vectors.f32").exists():
         raise FileNotFoundError(f"Missing {corpus_dir / 'vectors.f32'}")
     if not (corpus_dir / "meta.json").exists():
         raise FileNotFoundError(f"Missing {corpus_dir / 'meta.json'}")
-    if not (hnsw_dir / "hnsw_meta.json").exists():
-        raise FileNotFoundError(f"Missing HNSW index at {hnsw_dir / 'hnsw_meta.json'}")
+    if not (corpus_dir / "ids.txt").exists():
+        raise FileNotFoundError(f"Missing {corpus_dir / 'ids.txt'}")
+    if not (corpus_dir / "docstore.jsonl").exists():
+        raise FileNotFoundError(f"Missing {corpus_dir / 'docstore.jsonl'}")
 
-    # Load corpus data
     meta = load_meta(corpus_dir)
     dim = int(meta["dim"])
     ids = load_ids(corpus_dir)
@@ -97,98 +127,78 @@ def main():
 
     if len(ids) != vectors.shape[0]:
         raise ValueError(f"ids.txt count ({len(ids)}) != vectors rows ({vectors.shape[0]})")
+    if len(docstore) != vectors.shape[0]:
+        print(f"[WARN] docstore rows ({len(docstore)}) != vectors rows ({vectors.shape[0]}). "
+              "Filtering will use min(len(ids), len(docstore)).")
 
-    # Build brute-force baseline store
+    # 1) Filter user vectors down to ONLY this document
+    doc_rows = filter_doc_rows(ids, docstore, deleted, document_id=document_id)
+    if not doc_rows:
+        raise RuntimeError(
+            f"No vectors found for document_id={document_id}. "
+            "Check docstore.jsonl metadata.document_id and deleted_ids.txt."
+        )
+
+    doc_ids = [ids[i] for i in doc_rows]
+    doc_metas = [docstore[i] if i < len(docstore) else {} for i in doc_rows]
+    doc_vectors = vectors[doc_rows, :]
+
+    # 2) Build brute-force baseline over doc vectors only
     bf = LocalVectorStore(dim=dim, metric="cosine")
-    # metas length can be less than ids if something is off; guard it
-    metas = docstore if len(docstore) == len(ids) else [{} for _ in ids]
-    bf.add(ids=ids, vectors=vectors, metas=metas, compute_norms=True)
+    bf.add(ids=doc_ids, vectors=doc_vectors, metas=doc_metas, compute_norms=True)
 
-    # Load HNSW index graph and attach vectors (graph doesn’t store vectors)
-    hnsw = load_hnsw(hnsw_dir)
-    hnsw.vectors = hnsw._prepare_vectors(vectors)
+    # 3) Build HNSW index over doc vectors only (matches your "filter then ANN" approach)
+    params = HNSWParams(
+        M=hnsw_m,
+        ef_construction=hnsw_efc,
+        ef_search=hnsw_efs,
+        metric="cosine",
+        seed=42,
+    )
+    hnsw = HNSWIndex(params=params)
+    hnsw.build(doc_vectors)
+
+    # Attach vectors (your HNSW implementation expects vectors attached for distance)
+    hnsw.vectors = hnsw._prepare_vectors(doc_vectors)
     hnsw.N, hnsw.dim = hnsw.vectors.shape
 
-    # ✅ Consistency check: graph must not reference nodes >= N
-    mx = _max_neighbor_id(hnsw)
-    if mx >= hnsw.N:
-        print(f"[WARN] HNSW graph stale/corrupt: max neighbor id {mx} >= N {hnsw.N}. Rebuilding...")
+    # 4) Embed the provided query text
+    q_emb = embed_query(query_text)
+    q = np.asarray(q_emb, dtype=np.float32).reshape(dim,)
 
-        # Use existing params if present, else defaults
-        params = getattr(hnsw, "params", None)
-        if params is None:
-            params = HNSWParams(M=16, ef_construction=200, ef_search=80, metric="cosine", seed=42)
+    # 5) Accuracy: recall@k (HNSW vs brute-force)
+    exact = bf.search(q, k=k)
+    exact_ids = [r.id for r in exact]
 
-        rebuilt = HNSWIndex(params=params)
-        rebuilt.build(vectors)
+    approx = hnsw.search(q, k=k)
+    approx_ids = [doc_ids[i] for i, _score in approx]
 
-        save_hnsw(rebuilt, hnsw_dir)
+    rec = recall_at_k(exact_ids, approx_ids, k=k)
 
-        # reattach vectors
-        hnsw = rebuilt
-        hnsw.vectors = hnsw._prepare_vectors(vectors)
-        hnsw.N, hnsw.dim = hnsw.vectors.shape
-
-        print("[OK] Rebuilt HNSW index.")
-
-    # Choose realistic query vectors (sample from existing vectors)
-    rng = np.random.default_rng(123)
-    q_idx = rng.integers(0, len(vectors), size=min(n_queries, len(vectors)))
-    queries = vectors[q_idx]
-
-    # Helper: filter out deleted IDs from result lists (fair comparison)
-    def filter_deleted_id_list(id_list: list[str]) -> list[str]:
-        if not deleted:
-            return id_list
-        return [x for x in id_list if x not in deleted]
-
-    # Accuracy: recall@k against brute-force
-    recalls = []
-    for q in queries:
-        exact = bf.search(q, k=max(k * 5, k))  # overfetch then filter
-        exact_ids = filter_deleted_id_list([r.id for r in exact])[:k]
-
-        approx = hnsw.search(q, k=max(k * 20, k))  # overfetch then filter
-        approx_ids = filter_deleted_id_list([ids[i] for i, _score in approx])[:k]
-
-        # If filtering leaves us with fewer than k, recall@k is still computed against k
-        # (you can also compute recall@len(exact_ids) if you prefer)
-        if len(exact_ids) < k or len(approx_ids) < k:
-            # pad with empties so recall_at_k behaves consistently
-            exact_ids = (exact_ids + [""] * k)[:k]
-            approx_ids = (approx_ids + [""] * k)[:k]
-
-        recalls.append(recall_at_k(exact_ids, approx_ids, k=k))
-
-    avg_recall = float(np.mean(recalls)) if recalls else 0.0
-
-    # Latency benchmarks
-    qi = 0
-
+    # 6) Latency: benchmark this exact query repeatedly
     def run_bf():
-        nonlocal qi
-        bf.search(queries[qi % len(queries)], k=k)
-        qi += 1
-
-    qi2 = 0
+        bf.search(q, k=k)
 
     def run_hnsw():
-        nonlocal qi2
-        hnsw.search(queries[qi2 % len(queries)], k=k)
-        qi2 += 1
+        hnsw.search(q, k=k)
 
     bf_bench = bench_search(run_bf, n_runs=n_runs)
     hnsw_bench = bench_search(run_hnsw, n_runs=n_runs)
 
-    print("=== HNSW vs Brute-force (User Corpus) ===")
-    print(f"User: {user_id}")
-    print(f"Vectors: {len(vectors)} | dim: {dim} | k: {k} | queries: {len(queries)}")
-    print(f"Deleted IDs: {len(deleted)}")
-    print(f"Recall@{k}: {avg_recall:.3f}")
+    # 7) Print summary
+    print("=== Brute-force vs HNSW (Doc-filtered, Query-text driven) ===")
+    print(f"Artifacts: {artifacts_dir}")
+    print(f"User:      {user_id}")
+    print(f"Document:  {document_id}")
+    print(f"Query:     {query_text}")
     print()
-    print("Brute-force:")
+    print(f"Doc vectors: {len(doc_vectors)} / User vectors: {len(vectors)} | dim: {dim} | k: {k}")
+    print(f"HNSW params: M={hnsw_m}, efC={hnsw_efc}, efS={hnsw_efs}")
+    print(f"Recall@{k}:  {rec:.3f}")
+    print()
+    print("Brute-force (doc subset):")
     print(f"  QPS: {bf_bench.qps:.2f}, p50: {bf_bench.p50_ms:.3f} ms, p95: {bf_bench.p95_ms:.3f} ms")
-    print("HNSW:")
+    print("HNSW (doc subset):")
     print(f"  QPS: {hnsw_bench.qps:.2f}, p50: {hnsw_bench.p50_ms:.3f} ms, p95: {hnsw_bench.p95_ms:.3f} ms")
 
     speedup_p95 = (bf_bench.p95_ms / hnsw_bench.p95_ms) if hnsw_bench.p95_ms > 0 else 0.0
