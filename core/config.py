@@ -20,12 +20,6 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "qwen2.5:7b-instruct"
 
-    PINECONE_API_KEY: str
-    PINECONE_INDEX_NAME: str
-    PINECONE_NAMESPACE_PREFIX: str = "org_"
-    PINECONE_CLOUD: str = "aws"
-    PINECONE_REGION: str = "us-east-1"
-    PINECONE_DIM: int = 1536
 
     HNSW_M: int = 16
     HNSW_EFC: int = 200
