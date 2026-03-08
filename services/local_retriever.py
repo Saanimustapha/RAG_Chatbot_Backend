@@ -7,18 +7,9 @@ from typing import Any, Iterable, Optional
 import numpy as np
 
 from RAG_Chatbot_Backend.core.config import settings
-from RAG_Chatbot_Backend.services.hnsw.hnsw_persist import load_hnsw, save_hnsw
-from RAG_Chatbot_Backend.services.hnsw.hnsw_index import HNSWIndex, HNSWParams
+from RAG_Chatbot_Backend.services.hnsw.hnsw_store import load_hnsw, save_hnsw, HNSWIndex, HNSWParams
 
 
-def _max_neighbor_id(idx) -> int:
-    mx = -1
-    for node_layers in idx.neighbors:
-        for layer in node_layers:
-            for nb in layer:
-                if nb > mx:
-                    mx = nb
-    return mx
 
 
 def _user_artifacts_dir(user_id: str) -> Path:
@@ -195,18 +186,13 @@ def query_user_index(
         return {"matches": []}
 
     idx = load_hnsw(hnsw_dir)
-    idx.vectors = idx._prepare_vectors(vectors)
-    idx.N, idx.dim = idx.vectors.shape
 
-    mx = _max_neighbor_id(idx)
-    if mx >= idx.N:
-        params = getattr(idx, "params", None)
-        if params is None:
-            params = HNSWParams(M=16, ef_construction=200, ef_search=80, metric="cosine", seed=42)
-        rebuilt = HNSWIndex(params=params)
-        rebuilt.build(vectors)
-        save_hnsw(rebuilt, hnsw_dir)
-        idx = rebuilt
+    # Rebuild if index is empty 
+    if idx._index is None or idx.N == 0:
+        params = idx.params or HNSWParams(M=16, ef_construction=200, ef_search=80, metric="cosine", seed=42)
+        idx = HNSWIndex(params=params)
+        idx.build(vectors)
+        save_hnsw(idx, hnsw_dir)
 
     overfetch = max(top_k * 3, top_k)
     results = idx.search(q, k=overfetch)
