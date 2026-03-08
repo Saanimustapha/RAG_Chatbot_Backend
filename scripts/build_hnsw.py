@@ -3,8 +3,7 @@ from pathlib import Path
 import numpy as np
 
 from RAG_Chatbot_Backend.services.local_vector_store.store import LocalVectorStore
-from RAG_Chatbot_Backend.services.hnsw.hnsw_index import HNSWIndex, HNSWParams
-from RAG_Chatbot_Backend.services.hnsw.hnsw_persist import save_hnsw
+from RAG_Chatbot_Backend.services.hnsw.hnsw_store import HNSWIndex, HNSWParams, save_hnsw
 
 
 def main():

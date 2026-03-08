@@ -4,8 +4,7 @@ from pathlib import Path
 import numpy as np
 
 from RAG_Chatbot_Backend.services.corpus.corpus_store import UserCorpusStore
-from RAG_Chatbot_Backend.services.hnsw.hnsw_index import HNSWIndex, HNSWParams
-from RAG_Chatbot_Backend.services.hnsw.hnsw_persist import save_hnsw
+from RAG_Chatbot_Backend.services.hnsw.hnsw_store import load_hnsw, save_hnsw, HNSWIndex, HNSWParams
 
 
 def load_corpus_vectors(corpus_dir: Path, dim: int) -> np.ndarray:
