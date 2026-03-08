@@ -4,8 +4,7 @@ from pathlib import Path
 import numpy as np
 
 from RAG_Chatbot_Backend.services.corpus.corpus_store import UserCorpusStore, _load_docstore_jsonl
-from RAG_Chatbot_Backend.services.hnsw.hnsw_persist import load_hnsw, save_hnsw
-from RAG_Chatbot_Backend.services.hnsw.hnsw_index import HNSWIndex, HNSWParams
+from RAG_Chatbot_Backend.services.hnsw.hnsw_store import load_hnsw, save_hnsw, HNSWIndex, HNSWParams
 
 
 def _extract_doc_signature(doc_leaf: Path) -> tuple[str | None, int | None, str | None]:
@@ -109,8 +108,6 @@ def update_user_corpus_and_hnsw(
     # load and attach vectors
     idx = load_hnsw(hnsw_dir)
     idx.params = hnsw_params  # ensure consistent params
-    idx.vectors = idx._prepare_vectors(vectors_all)
-    idx.N, idx.dim = idx.vectors.shape
 
     # incremental insert only the appended part
     appended = vectors_all[start_row_before:]
