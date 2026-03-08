@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from RAG_Chatbot_Backend.core.config import settings
-from RAG_Chatbot_Backend.services.hnsw.hnsw_persist import load_hnsw
+from RAG_Chatbot_Backend.services.hnsw.hnsw_store import load_hnsw
 from RAG_Chatbot_Backend.services.bm25.bm25_store import UserBM25
 from RAG_Chatbot_Backend.services.retrieval.filters import allowed_rows_for_docs
 

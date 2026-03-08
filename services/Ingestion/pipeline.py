@@ -7,7 +7,7 @@ from sqlalchemy import select, delete
 
 
 from RAG_Chatbot_Backend.services.corpus.updater import update_user_corpus_and_hnsw
-from RAG_Chatbot_Backend.services.hnsw.hnsw_index import HNSWParams
+from RAG_Chatbot_Backend.services.hnsw.hnsw_store import HNSWParams
 from RAG_Chatbot_Backend.core.config import settings  
 from RAG_Chatbot_Backend.db.models import Document, Chunk  
 from RAG_Chatbot_Backend.services.embeddings import embed_passages
@@ -232,6 +232,7 @@ async def ingest_bytes(
             "doc_version": doc.version,
             "chunk_index": i,
             "title": sanitize_text(doc.title),
+            "text": sanitize_text(meta.get("text", "")),
             "source_type": doc.source_type or "",
             "filename": sanitize_text(filename or ""),
             "page_start": meta.get("page_start"),
