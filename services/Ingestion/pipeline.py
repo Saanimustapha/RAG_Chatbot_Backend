@@ -82,7 +82,9 @@ async def ingest_bytes(
         # remove old chunks for this doc (keeping only latest version)
         await db.execute(delete(Chunk).where(Chunk.document_id == doc.id))
         await db.commit()
-        # NOTE: You may also want to delete old vectors in Pinecone later.
+        await db.refresh(doc)   # re-attach doc to the session cleanly
+        db.expire_all()
+
 
     # load -> structured blocks
     chunker = _pick_chunker()
@@ -167,22 +169,9 @@ async def ingest_bytes(
     docstore_jsonl = []
 
     for i, (meta, emb) in enumerate(zip(chunks_with_meta, embeddings)):
-        # citation = f"{doc.id}:{i}"
         citation = f"{doc.id}:v{doc.version}:{i}"
         pinecone_id = f"{doc.id}:{doc.version}:{i}:{uuid4().hex[:8]}"
 
-        # vectors.append((pinecone_id, emb, {
-        #     "document_id": str(doc.id),
-        #     "doc_version": doc.version,
-        #     "chunk_index": i,
-        #     "title": doc.title or "",
-        #     "source_type": doc.source_type or "",
-        #     "filename": filename or "",
-        #     "citation": citation or "",
-        #     "page_start": meta.get("page_start"),
-        #     "page_end": meta.get("page_end"),
-        #     "section": meta.get("section"),
-        # }))
         raw_md = {
             "document_id": str(doc.id),
             "doc_version": doc.version,

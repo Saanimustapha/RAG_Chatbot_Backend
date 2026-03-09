@@ -39,4 +39,5 @@ numpy==1.26.4
 
 rank-bm25
 hnswlib==0.8.0
+matplotlib==3.8.2
 
