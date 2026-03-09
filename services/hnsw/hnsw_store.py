@@ -27,7 +27,7 @@ class HNSWParams:
     """
     M: int = 16
     ef_construction: int = 200
-    ef_search: int = 50
+    ef_search: int = 1000
     metric: str = "cosine"
     seed: int = 42
 
