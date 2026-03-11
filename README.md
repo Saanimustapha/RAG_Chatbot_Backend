@@ -367,9 +367,9 @@ The scalability of the HNSW index versus brute-force search was evaluated using 
 
 | Metric | Chart |
 |---|---|
-| **p50 Median Latency** | ![FAIR p50 Latency](fair_p50.png) |
-| **p95 Tail Latency** | ![FAIR p95 Latency](fair_p95.png) |
-| **Queries Per Second** | ![FAIR QPS](fair_qps.png) |
+| **p50 Median Latency** | ![FAIR p50 Latency](Images/fair_p50.png) |
+| **p95 Tail Latency** | ![FAIR p95 Latency](Images/fair_p95.png) |
+| **Queries Per Second** | ![FAIR QPS](Images/fair_qps.png) |
 
 **Key observations:**
 - The algorithmic crossover occurs at **N ≈ 500** (slightly above `ef_search = 200`). Below this point, exact search scans fewer vectors than HNSW's fixed candidate budget and is therefore faster.
@@ -386,9 +386,9 @@ The scalability of the HNSW index versus brute-force search was evaluated using 
 
 | Metric | Chart |
 |---|---|
-| **p50 Median Latency** | ![PROD p50 Latency](prod_p50.png) |
-| **p95 Tail Latency** | ![PROD p95 Latency](prod_p95.png) |
-| **Queries Per Second** | ![PROD QPS](prod_qps.png) |
+| **p50 Median Latency** | ![PROD p50 Latency](Images/prod_p50.png) |
+| **p95 Tail Latency** | ![PROD p95 Latency](Images/prod_p95.png) |
+| **Queries Per Second** | ![PROD QPS](Images/prod_qps.png) |
 
 **Key observations:**
 - The BF QPS curve is non-monotone at small N (visible in the QPS chart). This is a direct consequence of the ~80 µs BLAS dispatch floor on the i5-7300U: at N = 10–300, BLAS overhead dominates compute time, flattening BF latency regardless of corpus size. This is a platform artefact, not an algorithmic property — see the \[FAIR\] charts for the true comparison.
