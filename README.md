@@ -1,6 +1,6 @@
-# RAG Chatbot Backend
+# RAG Chatbot Backend with custom vector indexing pipeline
 
-A fully **local, privacy-preserving** Retrieval-Augmented Generation (RAG) backend that lets users upload documents and chat with them through a natural-language API. No data leaves your machine — embeddings, retrieval, and generation all run on-premise.
+This project implements a custom per-user vector indexing pipeline for RAG. Vectors are stored in a compact binary format and indexed using an HNSW-based ANN index (via an HNSW library). The system supports per-user corpus merges, index persistence, incremental updates (tombstones + append-only vectors), and benchmarking against an exact brute-force baseline (recall@k, p50/p95 latency).
 
 ---
 
