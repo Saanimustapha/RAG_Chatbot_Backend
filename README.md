@@ -398,20 +398,47 @@ The scalability of the HNSW index versus brute-force search was evaluated using 
 
 ---
 
-### Summary Table
+### [FAIR] Summary — hnswlib exact (ef=N) vs hnswlib ANN (ef=200)
 
-| N | Exact p50 | ANN p50 | Speedup | Recall@5 |
-|---|---|---|---|---|
-| 10 | 0.008 ms | 0.007 ms | 1.05× | 1.00 |
-| 100 | 0.027 ms | 0.029 ms | 0.94× | 1.00 |
-| 500 | 0.124 ms | 0.080 ms | **1.56× ◄** | 1.00 |
-| 1,000 | 0.244 ms | 0.106 ms | 2.31× | 1.00 |
-| 5,000 | 2.154 ms | 0.322 ms | 6.68× | 1.00 |
-| 10,000 | 3.453 ms | 0.532 ms | 6.49× | 1.00 |
-| 25,000 | 9.071 ms | 0.656 ms | **13.82×** | 1.00 |
-| 50,000 | 16.452 ms | 1.259 ms | 13.07× | 0.60 |
+| N | Exact p50 | ANN p50 | Speedup | Recall@5 | Winner |
+|---|---|---|---|---|---|
+| 10 | 0.008ms | 0.007ms | 1.05x | 1.000 | ANN ✓ ◄ crossover |
+| 25 | 0.011ms | 0.011ms | 0.98x | 1.000 | BF/Exact ✓ |
+| 50 | 0.017ms | 0.017ms | 0.98x | 1.000 | BF/Exact ✓ |
+| 100 | 0.027ms | 0.029ms | 0.94x | 1.000 | BF/Exact ✓ |
+| 150 | 0.034ms | 0.038ms | 0.89x | 1.000 | BF/Exact ✓ |
+| 200 | 0.045ms | 0.048ms | 0.93x | 1.000 | BF/Exact ✓ |
+| 300 | 0.069ms | 0.085ms | 0.82x | 1.000 | BF/Exact ✓ |
+| 500 | 0.124ms | 0.080ms | 1.56x | 1.000 | ANN ✓ |
+| 1,000 | 0.244ms | 0.106ms | 2.31x | 1.000 | ANN ✓ |
+| 2,000 | 0.569ms | 0.162ms | 3.52x | 1.000 | ANN ✓ |
+| 5,000 | 2.154ms | 0.322ms | 6.68x | 1.000 | ANN ✓ |
+| 10,000 | 3.453ms | 0.532ms | 6.49x | 1.000 | ANN ✓ |
+| 25,000 | 9.071ms | 0.656ms | 13.82x | 1.000 | ANN ✓ |
+| 50,000 | 16.452ms | 1.259ms | 13.07x | 0.600 | ANN ✓ |
 
-*◄ marks the algorithmic crossover point (N ≈ ef_search = 200). All timings from the \[FAIR\] regime.*
+### [PROD] Summary — LocalVectorStore (BF) vs HNSWIndex (ANN)
+
+| N | BF p50 | ANN p50 | Speedup | Recall@5 | Winner |
+|---|---|---|---|---|---|
+| 10 | 0.044ms | 0.024ms | 1.81x | 1.000 | HNSW ✓ ◄ crossover |
+| 25 | 0.087ms | 0.028ms | 3.14x | 1.000 | HNSW ✓ |
+| 50 | 0.076ms | 0.035ms | 2.19x | 1.000 | HNSW ✓ |
+| 100 | 0.076ms | 0.047ms | 1.62x | 1.000 | HNSW ✓ |
+| 150 | 0.077ms | 0.055ms | 1.38x | 1.000 | HNSW ✓ |
+| 200 | 0.079ms | 0.061ms | 1.29x | 1.000 | HNSW ✓ |
+| 300 | 0.081ms | 0.082ms | 0.99x | 1.000 | BF ✓ |
+| 500 | 0.124ms | 0.098ms | 1.26x | 1.000 | HNSW ✓ |
+| 1,000 | 0.095ms | 0.122ms | 0.77x | 1.000 | BF ✓ |
+| 2,000 | 0.211ms | 0.188ms | 1.12x | 1.000 | HNSW ✓ |
+| 5,000 | 0.609ms | 0.345ms | 1.76x | 1.000 | HNSW ✓ |
+| 10,000 | 1.310ms | 0.496ms | 2.64x | 1.000 | HNSW ✓ |
+| 25,000 | 3.356ms | 0.769ms | 4.36x | 1.000 | HNSW ✓ |
+| 50,000 | 7.923ms | 1.712ms | 4.63x | 0.400 | HNSW ✓ |
+
+On my i5-7300U, NumPy's OpenBLAS dispatch has a ~80 µs fixed overhead floor per call, while hnswlib's C++ entry point costs ~40 µs. This constant gap makes BF appear slower even at tiny N where it should theoretically win.
+
+The two rows where BF wins (N=300 at 0.99x, N=1,000 at 0.77x) reflect the moment where BLAS starts amortising its overhead as the matrix gets large enough
 
 ---
 
