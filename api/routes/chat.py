@@ -40,7 +40,7 @@ async def chat_query(
             raise HTTPException(status_code=404, detail="No accessible documents found.")
 
     # smart retrieval returns candidates with corpus_row + metadata (+ possibly text)
-    retrieved = smart_retrieve(
+    retrieved = await smart_retrieve(
         user_id=str(user.id),
         question=payload.question,
         top_k=top_k,
@@ -88,7 +88,7 @@ async def chat_query(
             "source": r.get("source"),
         })
 
-    answer = generate_answer(payload.question, contexts)
+    answer = await generate_answer(payload.question, contexts)
 
     return ChatOut(
         answer=answer,

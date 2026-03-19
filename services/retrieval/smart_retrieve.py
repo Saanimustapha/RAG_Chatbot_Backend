@@ -1,16 +1,19 @@
-import json
 import numpy as np
-from pathlib import Path
 from typing import Any, Optional
 
-from RAG_Chatbot_Backend.core.config import settings
 from RAG_Chatbot_Backend.services.embeddings import embed_query
-from RAG_Chatbot_Backend.services.retrieval.hybrid_retriever import hybrid_retrieve, _user_corpus_dir, _load_meta, _load_vectors
+from RAG_Chatbot_Backend.services.retrieval.hybrid_retriever import (
+    hybrid_retrieve,
+    _user_corpus_dir,
+    _load_meta,
+    _load_vectors,
+)
 from RAG_Chatbot_Backend.services.retrieval.diversity import mmr_select
 from RAG_Chatbot_Backend.services.retrieval.query_rewrite import rewrite_queries
 from RAG_Chatbot_Backend.services.retrieval.rerank import rerank
 
-def smart_retrieve(
+
+async def smart_retrieve(
     *,
     user_id: str,
     question: str,
@@ -21,14 +24,12 @@ def smart_retrieve(
     use_query_rewrite: bool = True,
     n_rewrites: int = 3,
 ) -> list[dict[str, Any]]:
-    # multi-query expansion
     queries = [question]
     if use_query_rewrite:
-        queries = rewrite_queries(question, n=n_rewrites)
+        queries = await rewrite_queries(question, n=n_rewrites)
         if question not in queries:
             queries = [question] + queries
 
-    # candidates from multiple queries merged by best score
     merged_by_row: dict[int, dict[str, Any]] = {}
 
     for qtext in queries:
@@ -43,7 +44,6 @@ def smart_retrieve(
                 document_ids=document_ids,
             )
         else:
-            # fallback: semantic-only (reuse hybrid_retrieve with keyword weight 0)
             cands = hybrid_retrieve(
                 user_id=user_id,
                 query_emb=q_emb,
@@ -62,7 +62,6 @@ def smart_retrieve(
     candidates = list(merged_by_row.values())
     candidates.sort(key=lambda x: x["score"], reverse=True)
 
-    # diversity / dedup
     corpus_dir = _user_corpus_dir(user_id)
     meta = _load_meta(corpus_dir)
     dim = int(meta["dim"])
@@ -70,13 +69,10 @@ def smart_retrieve(
 
     diverse = mmr_select(candidates, vectors=vectors, top_k=max(top_k * 3, top_k))
 
-    # attach text if present in metadata (optional)
-    # (best practice: store text in docstore.jsonl)
     for c in diverse:
         md = c.get("metadata") or {}
         c["text"] = md.get("text", "")
 
-    # rerank
     if use_rerank:
         return rerank(question, diverse, top_k=top_k)
 
