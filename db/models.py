@@ -44,9 +44,6 @@ class Chunk(Base):
     page_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
     page_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    # vector pointer info
-    pinecone_id: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
-
     document: Mapped["Document"] = relationship(back_populates="chunks")
 
     doc_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)

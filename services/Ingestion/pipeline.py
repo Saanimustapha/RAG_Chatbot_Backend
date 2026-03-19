@@ -170,7 +170,7 @@ async def ingest_bytes(
 
     for i, (meta, emb) in enumerate(zip(chunks_with_meta, embeddings)):
         citation = f"{doc.id}:v{doc.version}:{i}"
-        pinecone_id = f"{doc.id}:{doc.version}:{i}:{uuid4().hex[:8]}"
+        vector_id = f"{doc.id}:{doc.version}:{i}:{uuid4().hex[:8]}"
 
         raw_md = {
             "document_id": str(doc.id),
@@ -180,13 +180,12 @@ async def ingest_bytes(
             "source_type": doc.source_type or "unknown",
             "filename": safe_filename,
             "citation": citation,
-
             "page_start": meta.get("page_start"),
             "page_end": meta.get("page_end"),
             "section": meta.get("section"),
         }
 
-        vectors.append((pinecone_id, emb, raw_md))
+        vectors.append((vector_id, emb, raw_md))
 
         chunk_rows.append(Chunk(
             document_id=doc.id,
@@ -196,7 +195,7 @@ async def ingest_bytes(
             page_start=meta.get("page_start"),
             page_end=meta.get("page_end"),
             section=sanitize_text(meta.get("section")),        
-            pinecone_id=pinecone_id
+            vector_id=vector_id
         ))
 
         chunks_jsonl.append({
