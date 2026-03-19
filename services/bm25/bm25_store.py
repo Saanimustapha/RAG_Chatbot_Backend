@@ -76,10 +76,18 @@ class UserBM25:
         assert self._bm25 is not None
         q_tokens = tokenize(query)
         scores = self._bm25.get_scores(q_tokens)
+        n = len(scores)
 
         # restrict to allowed rows if provided (doc filter)
         if allowed_rows is not None:
-            candidates = [(i, float(scores[i])) for i in allowed_rows]
+            # ✅ keep only indices that exist in scores
+            valid_rows = [i for i in allowed_rows if 0 <= i < n]
+
+            # if filter wipes everything out, return empty rather than crashing
+            if not valid_rows:
+                return []
+
+            candidates = [(i, float(scores[i])) for i in valid_rows]
         else:
             candidates = [(i, float(s)) for i, s in enumerate(scores)]
 
