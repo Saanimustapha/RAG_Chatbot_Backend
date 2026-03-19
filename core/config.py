@@ -1,4 +1,7 @@
-from pydantic_settings import BaseSettings
+from typing import List
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     APP_NAME: str = "rag-backend"
@@ -10,7 +13,7 @@ class Settings(BaseSettings):
 
     JWT_SECRET: str
     JWT_ALG: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
 
     EMBEDDING_PROVIDER: str = "local"
     EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
@@ -19,7 +22,6 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "ollama"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "qwen2.5:7b-instruct"
-
 
     HNSW_M: int = 16
     HNSW_EFC: int = 200
@@ -34,8 +36,26 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = 80
     TOP_K: int = 6
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    CORS_ORIGINS: List[str] = ["*"]
+    OLLAMA_TIMEOUT_SECONDS: int = 300
+    QUERY_REWRITE_TIMEOUT_SECONDS: int = 120
+
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
+
+    @field_validator("JWT_SECRET")
+    @classmethod
+    def validate_jwt_secret(cls, v: str) -> str:
+        if not v or len(v.strip()) < 16:
+            raise ValueError("JWT_SECRET must be set and at least 16 characters long")
+        return v
+
+    @field_validator("CHUNK_STRATEGY")
+    @classmethod
+    def validate_chunk_strategy(cls, v: str) -> str:
+        allowed = {"tokens", "sentences"}
+        if v not in allowed:
+            raise ValueError(f"CHUNK_STRATEGY must be one of {allowed}")
+        return v
+
 
 settings = Settings()
