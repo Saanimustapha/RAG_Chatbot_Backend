@@ -40,6 +40,17 @@ class Settings(BaseSettings):
     OLLAMA_TIMEOUT_SECONDS: int = 300
     QUERY_REWRITE_TIMEOUT_SECONDS: int = 120
 
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_HEADERS_ENABLED: bool = True
+    RATE_LIMIT_STORAGE_URI: str = "redis://localhost:6379/1"
+    RATE_LIMIT_STRATEGY: str = "fixed-window"
+    RATE_LIMIT_KEY_PREFIX: str = "rag-chatbot"
+
+    AUTH_LOGIN_LIMIT: str = "10/minute"
+    AUTH_REGISTER_LIMIT: str = "5/minute"
+    CHAT_QUERY_LIMIT: str = "30/minute"
+    UPLOAD_LIMIT: str = "20/minute"
+
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 
     @field_validator("JWT_SECRET")

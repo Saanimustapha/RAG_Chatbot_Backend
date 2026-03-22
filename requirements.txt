@@ -38,3 +38,7 @@ rank-bm25
 hnswlib==0.8.0
 matplotlib==3.8.2
 
+slowapi==0.1.9
+limits[redis]==5.8.0
+redis==5.2.1
+
