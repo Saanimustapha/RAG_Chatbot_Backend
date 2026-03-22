@@ -1,15 +1,16 @@
 import os
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 
-
 from RAG_Chatbot_Backend.services.corpus.updater import update_user_corpus_and_hnsw
 from RAG_Chatbot_Backend.services.hnsw.hnsw_store import HNSWParams
-from RAG_Chatbot_Backend.core.config import settings  
-from RAG_Chatbot_Backend.db.models import Document, Chunk  
+from RAG_Chatbot_Backend.core.config import settings
+from RAG_Chatbot_Backend.core.logging import logger
+from RAG_Chatbot_Backend.db.models import Document, Chunk
 from RAG_Chatbot_Backend.services.embeddings import embed_passages
 from RAG_Chatbot_Backend.services.Ingestion.hashing import sha256_bytes
 from RAG_Chatbot_Backend.utils.text_sanitize import sanitize_text
@@ -39,13 +40,11 @@ async def ingest_bytes(
     file_bytes: bytes,
 ) -> dict:
     checksum = sha256_bytes(file_bytes)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     safe_title = (title or "").strip() or (filename or "").strip() or "untitled"
     safe_filename = (filename or "").strip() or safe_title
 
-
-    # find existing document (same owner + same filename OR title)
     q = select(Document).where(Document.owner_id == owner_id)
     if filename:
         q = q.where(Document.original_filename == filename)
@@ -56,9 +55,13 @@ async def ingest_bytes(
     doc = res.scalars().first()
 
     if doc and doc.checksum == checksum:
-        return {"skipped": True, "document_id": str(doc.id), "version": doc.version, "chunks": 0}
+        return {
+            "skipped": True,
+            "document_id": str(doc.id),
+            "version": doc.version,
+            "chunks": 0,
+        }
 
-    # create or update doc (bump version)
     if not doc:
         doc = Document(
             owner_id=owner_id,
@@ -68,6 +71,7 @@ async def ingest_bytes(
             checksum=checksum,
             version=1,
             created_at=now,
+            updated_at=now,
         )
         db.add(doc)
         await db.commit()
@@ -79,10 +83,9 @@ async def ingest_bytes(
         await db.commit()
         await db.refresh(doc)
 
-        # remove old chunks for this doc (keeping only latest version)
         await db.execute(delete(Chunk).where(Chunk.document_id == doc.id))
         await db.commit()
-        await db.refresh(doc)   # re-attach doc to the session cleanly
+        await db.refresh(doc)
         db.expire_all()
 
 
@@ -156,9 +159,12 @@ async def ingest_bytes(
 
 
     texts = [c["text"] for c in chunks_with_meta]
-    if not texts:
-        return {"skipped": False, "document_id": str(doc.id), "version": doc.version, "chunks": 0}
+    texts = [t for t in texts if t and t.strip()]
 
+    if not texts:
+        logger.warning("No extractable text found for document %s", doc.id)
+        return {"skipped": False, "document_id": str(doc.id), "version": doc.version, "chunks": 0}
+    
     # embed
     embeddings = embed_passages(texts)
 
