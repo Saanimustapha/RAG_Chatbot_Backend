@@ -1,12 +1,15 @@
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Form, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from RAG_Chatbot_Backend.api.deps import get_current_user
 from RAG_Chatbot_Backend.db.session import get_db
 from RAG_Chatbot_Backend.schemas.documents import PastedTextIn
 from RAG_Chatbot_Backend.services.Ingestion.pipeline import ingest_bytes
+from RAG_Chatbot_Backend.core.config import settings
+
 
 router = APIRouter(prefix="/docs", tags=["docs"])
+
 
 @router.post("/pasted")
 async def ingest_pasted(
@@ -25,34 +28,50 @@ async def ingest_pasted(
     )
     return result
 
+
 @router.post("/upload")
 async def ingest_upload(
-    title: str,
+    title: str = Form(...),
     file: UploadFile = File(...),
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     data = await file.read()
-    filename = file.filename or "upload"
+
+    max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
+    if len(data) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds max size of {settings.MAX_UPLOAD_MB} MB",
+        )
+
+    filename = (file.filename or "upload").strip()
     lower = filename.lower()
 
-    if lower.endswith(".pdf"):
-        source_type = "pdf"
-    elif lower.endswith(".docx"):
-        source_type = "docx"
-    elif lower.endswith(".html") or lower.endswith(".htm"):
-        source_type = "html"
-    elif lower.endswith(".txt") or lower.endswith(".md"):
-        source_type = "txt"
-    else:
+    allowed = {
+        ".pdf": "pdf",
+        ".docx": "docx",
+        ".html": "html",
+        ".htm": "html",
+        ".txt": "txt",
+        ".md": "txt",
+    }
+
+    source_type = None
+    for ext, mapped in allowed.items():
+        if lower.endswith(ext):
+            source_type = mapped
+            break
+
+    if not source_type:
         raise HTTPException(status_code=400, detail="Unsupported file type")
 
     result = await ingest_bytes(
-    db=db,
-    owner_id=user.id,
-    title=title,
-    filename=filename,
-    source_type=source_type,
-    file_bytes=data,
+        db=db,
+        owner_id=user.id,
+        title=title,
+        filename=filename,
+        source_type=source_type,
+        file_bytes=data,
     )
     return result
