@@ -5,6 +5,13 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from slowapi.middleware import SlowAPIMiddleware
+from RAG_Chatbot_Backend.core.rate_limit import (
+    limiter,
+    rate_limit_exception,
+    rate_limit_exceeded_handler,
+)
+
 from RAG_Chatbot_Backend.api.routes import auth, chat, documents
 from RAG_Chatbot_Backend.core.config import settings
 from RAG_Chatbot_Backend.core.logging import configure_logging, logger
@@ -48,6 +55,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.include_router(auth.router, prefix=settings.API_PREFIX)
+app.include_router(chat.router, prefix=settings.API_PREFIX)
+app.include_router(documents.router, prefix=settings.API_PREFIX)
+
+app.state.limiter = limiter
+app.add_exception_handler(rate_limit_exception, rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -78,10 +93,6 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled exception", exc_info=exc)
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
-
-app.include_router(auth.router, prefix=settings.API_PREFIX)
-app.include_router(chat.router, prefix=settings.API_PREFIX)
-app.include_router(documents.router, prefix=settings.API_PREFIX)
 
 
 @app.get("/health")
