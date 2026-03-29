@@ -33,6 +33,10 @@ limiter = Limiter(
     key_prefix=settings.RATE_LIMIT_KEY_PREFIX,
 )
 
+upload_shared_limit = limiter.shared_limit(
+    lambda: settings.UPLOAD_LIMIT,
+    scope="document-ingestion",
+)
 
 rate_limit_exceeded_handler = _rate_limit_exceeded_handler
 rate_limit_exception = RateLimitExceeded

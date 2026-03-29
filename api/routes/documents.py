@@ -6,14 +6,14 @@ from RAG_Chatbot_Backend.db.session import get_db
 from RAG_Chatbot_Backend.schemas.documents import PastedTextIn
 from RAG_Chatbot_Backend.services.Ingestion.pipeline import ingest_bytes
 from RAG_Chatbot_Backend.core.config import settings
-from RAG_Chatbot_Backend.core.rate_limit import limiter
+from RAG_Chatbot_Backend.core.rate_limit import upload_shared_limit
 
 
 router = APIRouter(prefix="/docs", tags=["docs"])
 
 
 @router.post("/pasted")
-@limiter.limit(lambda: settings.UPLOAD_LIMIT)
+@upload_shared_limit
 async def ingest_pasted(
     request: Request,
     payload: PastedTextIn,
@@ -33,7 +33,7 @@ async def ingest_pasted(
 
 
 @router.post("/upload")
-@limiter.limit(lambda: settings.UPLOAD_LIMIT)
+@upload_shared_limit
 async def ingest_upload(
     request: Request,
     title: str = Form(...),
