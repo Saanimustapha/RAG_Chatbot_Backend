@@ -1,15 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+
 from RAG_Chatbot_Backend.db.session import get_db
 from RAG_Chatbot_Backend.db.models import User
 from RAG_Chatbot_Backend.core.security import hash_password, verify_password, create_access_token
 from RAG_Chatbot_Backend.schemas.auth import RegisterIn, LoginIn, TokenOut
+from RAG_Chatbot_Backend.core.rate_limit import limiter
+from RAG_Chatbot_Backend.core.config import settings
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-@router.post("/register", response_model=TokenOut)
-async def register(payload: RegisterIn, db: AsyncSession = Depends(get_db)):
+
+@router.post("/register", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit(lambda: settings.AUTH_REGISTER_LIMIT)
+async def register(request: Request, payload: RegisterIn, db: AsyncSession = Depends(get_db)):
     res = await db.execute(select(User).where(User.email == payload.email))
     if res.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Email already registered")
@@ -18,12 +24,17 @@ async def register(payload: RegisterIn, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
     return TokenOut(access_token=create_access_token(str(user.id)))
 
+
 @router.post("/login", response_model=TokenOut)
-async def login(payload: LoginIn, db: AsyncSession = Depends(get_db)):
+@limiter.limit(lambda: settings.AUTH_LOGIN_LIMIT)
+async def login(request: Request, payload: LoginIn, db: AsyncSession = Depends(get_db)):
     res = await db.execute(select(User).where(User.email == payload.email))
     user = res.scalar_one_or_none()
+
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
     return TokenOut(access_token=create_access_token(str(user.id)))
