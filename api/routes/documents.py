@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Form, status
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Form, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from RAG_Chatbot_Backend.api.deps import get_current_user
@@ -6,13 +6,16 @@ from RAG_Chatbot_Backend.db.session import get_db
 from RAG_Chatbot_Backend.schemas.documents import PastedTextIn
 from RAG_Chatbot_Backend.services.Ingestion.pipeline import ingest_bytes
 from RAG_Chatbot_Backend.core.config import settings
+from RAG_Chatbot_Backend.core.rate_limit import limiter
 
 
 router = APIRouter(prefix="/docs", tags=["docs"])
 
 
 @router.post("/pasted")
+@limiter.limit(lambda: settings.UPLOAD_LIMIT)
 async def ingest_pasted(
+    request: Request,
     payload: PastedTextIn,
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -30,7 +33,9 @@ async def ingest_pasted(
 
 
 @router.post("/upload")
+@limiter.limit(lambda: settings.UPLOAD_LIMIT)
 async def ingest_upload(
+    request: Request,
     title: str = Form(...),
     file: UploadFile = File(...),
     user=Depends(get_current_user),
