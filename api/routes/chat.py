@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -10,6 +10,7 @@ from RAG_Chatbot_Backend.db.models import Chunk, Document
 from RAG_Chatbot_Backend.schemas.chat import ChatQueryIn, ChatOut, RetrievedChunk
 from RAG_Chatbot_Backend.core.config import settings
 from RAG_Chatbot_Backend.core.logging import logger
+from RAG_Chatbot_Backend.core.rate_limit import limiter
 from RAG_Chatbot_Backend.services.rag import generate_answer
 from RAG_Chatbot_Backend.utils.citations import format_citation
 from RAG_Chatbot_Backend.services.retrieval.smart_retrieve import smart_retrieve
@@ -19,7 +20,9 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("/query", response_model=ChatOut)
+@limiter.limit(lambda: settings.CHAT_QUERY_LIMIT)
 async def chat_query(
+    request: Request,
     payload: ChatQueryIn,
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
