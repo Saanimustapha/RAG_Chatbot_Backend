@@ -16,6 +16,7 @@ from RAG_Chatbot_Backend.api.routes import auth, chat, documents
 from RAG_Chatbot_Backend.core.config import settings
 from RAG_Chatbot_Backend.core.logging import configure_logging, logger
 from RAG_Chatbot_Backend.db.session import engine
+from RAG_Chatbot_Backend.services.rate_limit_health import check_rate_limit_redis
 
 
 @asynccontextmanager
@@ -35,6 +36,9 @@ async def lifespan(app: FastAPI):
     missing = [k for k, v in required.items() if not v]
     if missing:
         raise RuntimeError(f"Missing required settings: {', '.join(missing)}")
+    
+    if settings.RATE_LIMIT_ENABLED:
+        await check_rate_limit_redis()
 
     async with engine.begin() as conn:
         await conn.execute(text("SELECT 1"))
